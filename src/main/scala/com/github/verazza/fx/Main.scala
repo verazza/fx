@@ -2,7 +2,6 @@ package fx
 
 object Main extends Gaming with App {
   println(s"start ${gaming}!")
-  // ScalaFXHelloWorld.main(Array.empty[String])
   Tetris.main(Array.empty[String])
 }
 
