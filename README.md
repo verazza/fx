@@ -1,7 +1,8 @@
 # fx
 
 ## Comment
-I wanna create something simple game by using [ScalaFX](https://scalafx.org).
+I wanna create something simple game by using [ScalaFX](https://scalafx.org). I've decided to try Tetris as my first game to start with.  
+__From 04/22/25__
 
 ## Progress
 Kindly check package: [com.github.verazza.fx](src/main/scala/com/github/verazza/fx).  
