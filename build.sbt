@@ -8,6 +8,7 @@ ThisBuild / organizationName := "verazza"
 lazy val root = (project in file("."))
   .settings(
     name := "fx",
+    Compile / run / mainClass := Some("fx.Main"),
     libraryDependencies += scalafx,
     libraryDependencies ++= {
       // Determine OS version of JavaFX binaries
