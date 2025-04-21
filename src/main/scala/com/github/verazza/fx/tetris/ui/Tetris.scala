@@ -43,7 +43,6 @@ object Tetris extends JFXApp3 {
             }
           }
 
-          // グリッド線の描画 (既存のコードを再利用)
           for (i <- 0 to numCols) {
             children += new Line {
               startX = i * cellSize
