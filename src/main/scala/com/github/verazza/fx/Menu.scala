@@ -32,7 +32,7 @@ object Menu extends JFXApp3 with Gaming {
 
         val debugButtons = List[Button](
           new Button {
-            text = "テトリスを新規ウィンドウで立ち上げる(×5)"
+            text = "テトリスを新規ウィンドウで立ち上げる(×6)"
             onAction = (event: ActionEvent) => {
               val screenBounds = Screen.primary.getVisualBounds
               val screenWidth = screenBounds.getWidth
@@ -58,7 +58,7 @@ object Menu extends JFXApp3 with Gaming {
               val gridStartX = screenCenterX - totalGridWidth / 2
               val gridStartY = screenCenterY - totalGridHeight / 2
 
-              for (i <- 0 to 4) {
+              for (i <- 0 to 5) {
                 val tetrisStage = Tetris.getStage(i + 1)
 
                 val row = i / gridCols
