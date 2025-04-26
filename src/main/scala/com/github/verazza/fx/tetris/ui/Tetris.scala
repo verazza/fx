@@ -6,23 +6,25 @@ import scalafx.scene.paint.Color
 import scalafx.scene.shape.Rectangle
 import scalafx.scene.layout.Pane
 import scalafx.scene.shape.Line
+import scalafx.stage.Stage
 import fx.tetris.logic.Tetromino
 
-object Tetris extends JFXApp3 {
+object Tetris {
   val numCols = 10
   val numRows = 20
   val cellSize = 30
   val boardWidth = numCols * cellSize
   val boardHeight = numRows * cellSize
 
-  override def start(): Unit = {
-    stage = new JFXApp3.PrimaryStage {
-      title.value = "ScalaFX Tetris"
+  def getStage(id: Int = 0): Stage = {
+    new Stage {
+      title.value = s"ScalaFX Tetris (id: ${id})"
       scene = new Scene(boardWidth, boardHeight) {
         fill = Color.LightGray
         val gamePane = new Pane {
-          val currentTetrominoShape = Tetromino.iShape
-          val color = Tetromino.shapeColors("I")
+          val tm = new Tetromino.Getter
+          val currentTetrominoShape = tm.getMino()
+          val color = tm.getColor()
           val startX = numCols / 2 - 2
           val startY = 0
 
