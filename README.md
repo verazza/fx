@@ -6,8 +6,11 @@ I wanna create something simple game by using [ScalaFX](https://scalafx.org). I'
 ## Progress
 Kindly check package: [com.github.verazza.fx](src/main/scala/com/github/verazza/fx).  
 __04/26/25__  
+* add randomness the first tetro-mino
+* start new window
 ![fx_progress](https://raw.githubusercontent.com/verazza/branding/refs/heads/master/repo/fx/fx_tetris_04_26_25.gif)  
 __04/22/25__  
+* create the simple window with tetro-mino  
 ![fx_progress](https://raw.githubusercontent.com/verazza/branding/refs/heads/master/repo/fx/fx_tetris_04_22_25.gif)  
 __04/22/25__  
 First Commit
