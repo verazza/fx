@@ -45,26 +45,32 @@ object Tetris {
             }
           }
 
-          for (i <- 0 to numCols) {
-            children += new Line {
-              startX = i * cellSize
-              startY = 0
-              endX = i * cellSize
-              endY = boardHeight
-              stroke = Color.Gray
-            }
-          }
-          for (i <- 0 to numRows) {
-            children += new Line {
-              startX = 0
-              startY = i * cellSize
-              endX = boardWidth
-              endY = i * cellSize
-              stroke = Color.Gray
-            }
           }
         }
+        drawGrid(gamePane)
         content = gamePane
+      }
+    }
+  }
+
+
+  private def drawGrid(pane: Pane): Unit = {
+    for (i <- 0 to numCols) {
+      pane.children += new Line {
+        startX = i * cellSize
+        startY = 0
+        endX = i * cellSize
+        endY = boardHeight
+        stroke = Color.Gray
+      }
+    }
+    for (i <- 0 to numRows) {
+      pane.children += new Line {
+        startX = 0
+        startY = i * cellSize
+        endX = boardWidth
+        endY = i * cellSize
+        stroke = Color.Gray
       }
     }
   }
