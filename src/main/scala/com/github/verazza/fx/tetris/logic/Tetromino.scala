@@ -20,6 +20,8 @@ object Tetromino {
     def getColor(): Color = {
       shapeColors.get(rt).getOrElse(null)
     }
+
+    def fallMino(): Unit = {}
   }
 
   val iShape: Array[Array[Int]] = Array(

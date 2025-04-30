@@ -25,9 +25,7 @@ object Menu extends JFXApp3 with Gaming {
 
         val tetrisButton = new Button {
           text = tetrisButtonText
-          onAction = (event: ActionEvent) => {
-            Tetris.getStage()
-          }
+          onAction = (event: ActionEvent) => Tetris.getStage().show()
         }
 
         val debugButtons = List[Button](
