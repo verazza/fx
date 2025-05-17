@@ -78,5 +78,24 @@ sha256: assembly # Changed dependency from 'jar' to 'assembly' to prevent loop
 			echo "'hashes.sha256' was removed or is empty if no matching files were found."; \
 		fi \
 	)
+	@echo ""
+	@echo "--- Moving JARs and hashes.sha256 to project root ---"
+	@mv $(SHA256_DIR)/$(JAR_PATTERN) . 2>/dev/null || echo "No JAR files found to move."
+	@mv $(SHA256_FILE) . 2>/dev/null || echo "No hashes.sha256 file found to move."
+	@echo "Moved files to: $$(pwd)"
+
+	# setup.bat の SHA256 を hashes.sha256 に追記する処理
+	@echo ""
+	@echo "--- Appending SHA256 for setup.bat ---"
+	@if [ -f setup.bat ]; then \
+		if sha256sum -b setup.bat >> hashes.sha256; then \
+			echo "Appended SHA256 checksum for setup.bat to hashes.sha256"; \
+		else \
+			echo "Error: Failed to generate SHA256 checksum for setup.bat" >&2; \
+		fi \
+	else \
+		echo "Warning: setup.bat not found in project root." >&2; \
+	fi
 	@echo "--- SHA256 checksum generation finished ---"
+	@echo "--- All checksum operations complete ---"
 

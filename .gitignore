@@ -1,3 +1,5 @@
+/fx-verazza-*-SNAPSHOT.jar
+/hashes.sha256
 *.class
 *.cache
 **/project/**/target/
