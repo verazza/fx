@@ -1,19 +1,23 @@
 package fx.tetris.logic
 
 import scalafx.scene.paint.Color
+// import scala.collection.mutable // TetrisGameLogic では直接使わない
 
 class TetrisGameLogic {
 
   import GameConstants._
 
+  // Game State
   var board: Array[Array[Option[Color]]] = Array.fill(NumRows, NumCols)(None)
   var currentFallingTetromino: FallingTetromino = createNewFallingTetromino()
   var gameOver: Boolean = false
   var score: Int = 0
 
+  // Animation Timer related state
   var currentFallInterval: Long = FallIntervalNormal
   var lastFallTime: Long = 0L
 
+  // Lock Delay State
   var isGrounded: Boolean = false
   var lockDelayStartTime: Long = 0L
   val initialLockDelayNanos: Long = 500_000_000L
@@ -22,19 +26,24 @@ class TetrisGameLogic {
   val maxRotationsForLockReset: Int = 15
   var successfulMovesSinceGrounded: Int = 0
 
-  // ゲームオーバーが確定したが、UIに演出時間を伝えるためのフラグ
   var gameOverPendingAnimation: Boolean = false
+
+  // Hold機能関連のétat
+  var heldTetromino: Option[FallingTetromino] = None // ホールドされているミノ
+  var canHold: Boolean = true // 現在のターンでホールドが可能か
 
   def resetGame(): Unit = {
     board = Array.fill(NumRows, NumCols)(None)
     currentFallingTetromino =
-      createNewFallingTetromino() // これが resetLockDelayState も呼ぶ
+      createNewFallingTetromino() // これが resetLockDelayState と canHold もリセット
     gameOver = false
-    gameOverPendingAnimation = false // リセット
+    gameOverPendingAnimation = false
     score = 0
     currentFallInterval = FallIntervalNormal
     lastFallTime = System.nanoTime()
-    // resetLockDelayState() は createNewFallingTetromino 内で呼ばれる
+    heldTetromino = None // ホールドミノもリセット
+    // canHold は createNewFallingTetromino 内で true になる
+    println("[Logic] Game Reset")
   }
 
   private def resetLockDelayState(): Unit = {
@@ -45,21 +54,78 @@ class TetrisGameLogic {
     currentLockDelayNanos = initialLockDelayNanos
   }
 
-  private def createNewFallingTetromino(): FallingTetromino = {
+  private def createNewFallingTetromino(
+    isFromHold: Boolean = false
+  ): FallingTetromino = {
+    if (!isFromHold) { // ホールドからの呼び出しでなければホールド権をリセット
+      canHold = true
+    }
     resetLockDelayState()
     val (name, shape, color) = Tetromino.getRandomTetromino()
     val tetromino = new FallingTetromino(name, shape, color)
-    // 初期位置を少し上に変更して、出現時に盤面と重ならないようにする
-    // 形状の最も上のブロックがy=0に来るように調整
     var minYInShape = shape.length
     for (r <- shape.indices; c <- shape(r).indices) {
       if (shape(r)(c) == 1) minYInShape = Math.min(minYInShape, r)
     }
     tetromino.x = NumCols / 2 - shape(0).length / 2
-    tetromino.y = -minYInShape // 形状の上端が0行目に来るように調整
+    tetromino.y = -minYInShape
+    println(
+      s"[Logic] Created new tetromino: ${name} at y=${tetromino.y}, x=${tetromino.x}. Can hold: $canHold"
+    )
     tetromino
   }
 
+  // ホールド操作を実行するメソッド
+  def performHold(): Boolean = {
+    if (!canHold || gameOver || gameOverPendingAnimation) return false
+
+    val previouslyHeld = heldTetromino // 現在ホールドされているミノ (あれば)
+    heldTetromino = Some(
+      new FallingTetromino( // 現在のミノをホールド用にコピー (位置や向きはリセットされる想定)
+        currentFallingTetromino.minoName,
+        Tetromino.tetrominoData
+          .find(_._1 == currentFallingTetromino.minoName)
+          .get
+          ._2, // 元の形状を取得
+        currentFallingTetromino.color
+      )
+    )
+
+    previouslyHeld match {
+      case Some(minoFromHold) =>
+        // ホールドされていたミノを現在のミノとして再設定
+        currentFallingTetromino = new FallingTetromino(
+          minoFromHold.minoName,
+          minoFromHold.currentShape,
+          minoFromHold.color
+        )
+        // 初期位置にリセット
+        var minYInShape = minoFromHold.currentShape.length
+        for (
+          r <- minoFromHold.currentShape.indices;
+          c <- minoFromHold.currentShape(r).indices
+        ) {
+          if (minoFromHold.currentShape(r)(c) == 1)
+            minYInShape = Math.min(minYInShape, r)
+        }
+        currentFallingTetromino.x =
+          NumCols / 2 - minoFromHold.currentShape(0).length / 2
+        currentFallingTetromino.y = -minYInShape
+      case None =>
+        // ホールドが空だったので、新しいミノを生成
+        currentFallingTetromino = createNewFallingTetromino(isFromHold =
+          true
+        ) // ホールドからの生成なのでホールド権は消費しない
+    }
+
+    canHold = false // このターンではもうホールドできない
+    resetLockDelayState() // 新しいミノ（またはホールドから来たミノ）のロック遅延状態をリセット
+    lastFallTime = System.nanoTime() // 落下タイミングもリセット
+    println(
+      s"[Logic] Performed hold. Held: ${heldTetromino.map(_.minoName)}, Current: ${currentFallingTetromino.minoName}. Can hold: $canHold"
+    )
+    true
+  }
   def isValidPosition(
     tetromino: FallingTetromino,
     testX: Int,
@@ -291,31 +357,31 @@ class TetrisGameLogic {
   }
 
   private def fixAndSpawnNew(): Unit = {
-    fixTetromino() // まず現在のミノを固定
+    fixTetromino()
 
-    // ライン消去などの処理
     val linesClearedCount = clearLines()
     if (linesClearedCount > 0) {
       score += (linesClearedCount * 100 * linesClearedCount)
-      println(s"Lines Cleared: $linesClearedCount, Total Score: $score")
+      println(s"[Logic] Lines Cleared: $linesClearedCount, Total Score: $score")
     }
 
-    // 新しいミノを生成
-    val newMino = createNewFallingTetromino() // ここで resetLockDelayState が呼ばれる
+    // canHold = true // ★ ミノが固定されたので、次のミノではホールド可能にする
+    // -> createNewFallingTetromino で isFromHold = false の場合に true に設定されるのでここで直接は不要
 
-    // 新しいミノが初期位置で即座に衝突するかチェック (ゲームオーバー判定)
-    // 出現位置での衝突判定は、ミノのy座標が負の場合も考慮する
+    val newMino = createNewFallingTetromino() // isFromHold = false (デフォルト)
+
     if (
       !isValidPositionAfterSpawn(newMino.x, newMino.y, newMino.currentShape)
     ) {
       gameOver = true
-      gameOverPendingAnimation = true // ★ UIにアニメーションの時間を伝える
-      println("GAME OVER! Pending animation.")
-      // currentFallingTetromino は古いミノのままにしておき、盤面を描画できるようにする
+      gameOverPendingAnimation = true
+      println(
+        s"[Logic] !!! GAME OVER DETECTED !!! newMino at y=${newMino.y}. gameOver=$gameOver, pendingAnim=$gameOverPendingAnimation"
+      )
     } else {
-      currentFallingTetromino = newMino // 問題なければ新しいミノをセット
+      currentFallingTetromino = newMino
     }
-    lastFallTime = System.nanoTime() // 新しいミノの落下タイマーリセット
+    lastFallTime = System.nanoTime()
   }
 
   // 出現直後のisValidPosition。y < 0 の場合も考慮
