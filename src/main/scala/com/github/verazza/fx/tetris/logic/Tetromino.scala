@@ -6,24 +6,6 @@ import scala.util.Random
 object Tetromino {
   val rd = new Random
 
-  class Getter {
-    private var _r = rd.between(0, 6)
-    def r = _r
-    def r_=(newR: Int): Unit = _r = newR
-
-    private var rt = kinds(this.r)
-
-    def getMino(): Array[Array[Int]] = {
-      shapes.get(rt).getOrElse(null)
-    }
-
-    def getColor(): Color = {
-      shapeColors.get(rt).getOrElse(null)
-    }
-
-    def fallMino(): Unit = {}
-  }
-
   val iShape: Array[Array[Int]] = Array(
     Array(0, 0, 0, 0),
     Array(1, 1, 1, 1),
@@ -66,32 +48,38 @@ object Tetromino {
     Array(0, 0, 0, 0)
   )
 
-  val oShape: Array[Array[Int]] = Array(
-    Array(1, 1, 0, 0),
-    Array(1, 1, 0, 0),
-    Array(0, 0, 0, 0),
-    Array(0, 0, 0, 0)
+  val oShape: Array[Array[Int]] =
+    Array( // O Shape is often 2x2, fitting in a 4x4 grid.
+      Array(0, 1, 1, 0),
+      Array(0, 1, 1, 0),
+      Array(0, 0, 0, 0),
+      Array(0, 0, 0, 0)
+    )
+
+  // またはよりコンパクトなO Shape (2x2)
+  // val oShape: Array[Array[Int]] = Array(
+  //   Array(1, 1),
+  //   Array(1, 1)
+  // )
+  // この場合、FallingTetrominoの回転ロジックや初期位置決めを少し調整する必要があるかもしれません。
+  // 今回は4x4の枠内で定義されたものを使います。
+
+  val tetrominoData: Seq[(String, Array[Array[Int]], Color)] = Seq(
+    ("I", iShape, Color.Cyan),
+    ("T", tShape, Color.Purple),
+    ("L", lShape, Color.Orange),
+    ("J", jShape, Color.Blue),
+    ("S", sShape, Color.Green),
+    ("Z", zShape, Color.Red),
+    ("O", oShape, Color.Yellow)
   )
 
-  val kinds = List[String]("I", "T", "L", "J", "S", "Z", "O")
+  def getRandomTetromino(): (Array[Array[Int]], Color) = {
+    val randomIndex = rd.nextInt(tetrominoData.length)
+    val selected = tetrominoData(randomIndex)
+    (selected._2, selected._3)
+  }
 
-  val shapes = Map(
-    "I" -> iShape,
-    "T" -> tShape,
-    "L" -> lShape,
-    "J" -> jShape,
-    "S" -> sShape,
-    "Z" -> zShape,
-    "O" -> oShape
-  )
-
-  val shapeColors = Map(
-    "I" -> Color.Cyan,
-    "T" -> Color.Purple,
-    "L" -> Color.Orange,
-    "J" -> Color.Blue,
-    "S" -> Color.Green,
-    "Z" -> Color.Red,
-    "O" -> Color.Yellow
-  )
+  // Tetromino.Getterは直接は使わず、getRandomTetrominoで新しいミノ情報を取得するようにします。
+  // 既存のコードでGetterを使っている部分は、このgetRandomTetrominoを使うように変更します。}
 }
