@@ -2,21 +2,11 @@ package fx.tetris.ui
 
 import scalafx.Includes._
 import scalafx.scene.Scene
-import scalafx.scene.layout.{
-  Pane,
-  StackPane,
-  VBox,
-  HBox,
-  Region
-} // HBox, Region を追加
+import scalafx.scene.layout.{Pane, StackPane, VBox, HBox, Region}
 import scalafx.scene.control.Button
 import scalafx.geometry.{Insets, Pos}
 import scalafx.stage.Stage
-import fx.tetris.logic.{
-  TetrisGameLogic,
-  GameConstants,
-  FallingTetromino
-} // FallingTetromino をインポート
+import fx.tetris.logic.{TetrisGameLogic, GameConstants, FallingTetromino}
 import scalafx.animation.{AnimationTimer, KeyFrame, Timeline, PauseTransition}
 import scalafx.util.Duration
 import scalafx.scene.input.{
@@ -24,7 +14,7 @@ import scalafx.scene.input.{
   KeyEvent,
   KeyCombination,
   KeyCodeCombination
-} // KeyCombination関連を追加
+}
 import scalafx.scene.text.Text
 import scalafx.application.Platform
 import scalafx.scene.paint.Color
@@ -41,13 +31,16 @@ object TetrisUI {
   private var gameOverDisplayTimeline: Option[Timeline] = None
   private var gameOverMenuDelay: Option[PauseTransition] = None
 
-  // ホールドミノ表示用のPaneのサイズ (セル単位)
   val HoldPaneCellWidth = 4
-  val HoldPaneCellHeight = 2 // Iミノの縦置きも考慮するなら4
+  val HoldPaneCellHeight = 2 // Iミノ縦置きも考慮するなら4が良いかも
+
+  val NextPaneCellWidth = 4
+  val NextPaneCellHeight = 2 // 各Nextミノ表示エリアの高さ
 
   def getStage(id: Int = 0): Stage = {
-    val gameLogic = new TetrisGameLogic()
-    gameLogic.resetGame()
+    val gameLogic = new TetrisGameLogic() // resetGame内でNextキューも初期化される
+    // gameLogic.resetGame() // TetrisGameLogicのコンストラクタでinitialTetrominoが呼ばれ、その中でresetGame相当の初期化がされるように変更
+
     isPaused = false
 
     val keysPressed = mutable.Set[KeyCode]()
@@ -135,7 +128,7 @@ object TetrisUI {
       quitGameButtonGO
     )
 
-    // --- UI要素の追加: ホールド表示エリア ---
+    // --- ホールド表示エリア ---
     val holdPane = new Pane {
       prefWidth = HoldPaneCellWidth * CellSize + 2 // 枠線分
       prefHeight = HoldPaneCellHeight * CellSize + 2
@@ -151,7 +144,24 @@ object TetrisUI {
       children = Seq(holdText, holdPane)
       padding = Insets(10)
     }
-    // --- UI要素ここまで ---
+
+    // --- Nextミノ表示エリア ---
+    val nextPanes = Seq.fill(NumNextToDisplay)(new Pane {
+      prefWidth = NextPaneCellWidth * CellSize + 2
+      prefHeight = NextPaneCellHeight * CellSize + 2
+      style =
+        "-fx-background-color: rgba(0,0,0,0.2); -fx-border-color: silver; -fx-border-width: 1;"
+    })
+    val nextText = new Text("NEXT") {
+      style = "-fx-font-size: 12pt; -fx-fill: white;"
+    }
+    val nextArea = new VBox {
+      spacing = 5
+      alignment = Pos.Center
+      children = nextText +: nextPanes // テキストと各Nextペイン
+      padding = Insets(10)
+    }
+    // --- Nextミノ表示エリアここまで ---
 
     val gamePane = new Pane // ゲーム盤面用
     // gamePane.children.add(gameOverText) // gameOverTextはdrawGameUIで管理
@@ -162,9 +172,9 @@ object TetrisUI {
       padding = Insets(10)
       alignment = Pos.Center
       children = Seq(
-        holdArea, // ホールドエリアを左に追加
-        gamePane // ゲーム盤面
-        // TODO: Nextミノ表示エリアを右に追加
+        holdArea,
+        gamePane,
+        nextArea // Nextエリアを右に追加
       )
     }
 
@@ -179,9 +189,9 @@ object TetrisUI {
 
     val currentStage = new Stage {
       title.value = s"ScalaFX Tetris (id: ${id})"
-      // Sceneのサイズを mainLayout が収まるように調整 (BoardWidth + holdAreaの幅 + paddingなど)
+      // Sceneのサイズを調整 (BoardWidth + holdArea + nextArea + paddings)
       scene = new Scene(
-        BoardWidth + HoldPaneCellWidth * CellSize + 80,
+        BoardWidth + (HoldPaneCellWidth + NextPaneCellWidth) * CellSize + 120,
         BoardHeight + 40
       ) { // 仮サイズ
         content = rootPane
@@ -192,7 +202,9 @@ object TetrisUI {
           gameLogic.gameOver,
           gameOverText,
           gameLogic.heldTetromino,
-          holdPane
+          holdPane,
+          gameLogic.nextTetrominoQueue.toSeq,
+          nextPanes
         )
 
         val timer = AnimationTimer { now =>
@@ -202,7 +214,6 @@ object TetrisUI {
             if (!gameOverText.visible.value) {
               animationTimerInstance.foreach(_.stop())
               gameOverText.visible = true
-              // gameOverText.layoutX は固定値なので再計算不要
               startGameOverTextAnimation(gameOverText)
               TetrisDrawer.drawGameUI(
                 gamePane,
@@ -211,7 +222,9 @@ object TetrisUI {
                 gameLogic.gameOver,
                 gameOverText,
                 gameLogic.heldTetromino,
-                holdPane
+                holdPane,
+                gameLogic.nextTetrominoQueue.toSeq,
+                nextPanes
               )
             }
             if (gameOverMenuDelay.isEmpty) {
@@ -251,8 +264,11 @@ object TetrisUI {
               gameLogic.gameOver,
               gameOverText,
               gameLogic.heldTetromino,
-              holdPane
+              holdPane,
+              gameLogic.nextTetrominoQueue.toSeq,
+              nextPanes
             )
+
           }
         }
         animationTimerInstance = Some(timer)
@@ -273,7 +289,9 @@ object TetrisUI {
                       gameLogic.gameOver,
                       gameOverText,
                       gameLogic.heldTetromino,
-                      holdPane
+                      holdPane,
+                      gameLogic.nextTetrominoQueue.toSeq,
+                      nextPanes
                     )
                   }
                 }
@@ -314,6 +332,7 @@ object TetrisUI {
                   if (!keysPressed.contains(event.code))
                     keysPressed += event.code
                   if (needsRedraw) {
+
                     TetrisDrawer.drawGameUI(
                       gamePane,
                       gameLogic.currentFallingTetromino,
@@ -321,7 +340,9 @@ object TetrisUI {
                       gameLogic.gameOver,
                       gameOverText,
                       gameLogic.heldTetromino,
-                      holdPane
+                      holdPane,
+                      gameLogic.nextTetrominoQueue.toSeq,
+                      nextPanes
                     )
                   }
                 }
@@ -349,16 +370,18 @@ object TetrisUI {
               gameLogic.gameOver,
               gameOverText,
               gameLogic.heldTetromino,
-              holdPane
+              holdPane,
+              gameLogic.nextTetrominoQueue.toSeq,
+              nextPanes
             )
           }
         }
       }
     }
 
-    // --- ボタンアクション設定 ---
+    // ボタンアクション設定 (描画呼び出しにNext情報追加)
     resumeButtonP.onAction = () => togglePause(pauseMenuPane, gameLogic)
-    restartButtonP.onAction = () => { /* ... (変更なし、ただし描画呼び出しにホールド情報追加) ... */
+    restartButtonP.onAction = () => {
       cleanUpBeforeRestartOrExit()
       gameLogic.resetGame()
       keysPressed.clear(); continuousMoveDirection = None; moveKeyDownTime = 0L
@@ -372,7 +395,9 @@ object TetrisUI {
         gameLogic.gameOver,
         gameOverText,
         gameLogic.heldTetromino,
-        holdPane
+        holdPane,
+        gameLogic.nextTetrominoQueue.toSeq,
+        nextPanes
       )
     }
     // ... 他のボタンアクションも同様に描画呼び出しを更新 ...
@@ -397,7 +422,9 @@ object TetrisUI {
         gameLogic.gameOver,
         gameOverText,
         gameLogic.heldTetromino,
-        holdPane
+        holdPane,
+        gameLogic.nextTetrominoQueue.toSeq,
+        nextPanes
       )
     }
     backToMenuButtonGO.onAction = () => {
@@ -406,6 +433,7 @@ object TetrisUI {
     quitGameButtonGO.onAction = () => {
       cleanUpBeforeRestartOrExit(); Platform.exit()
     }
+
     currentStage.onCloseRequest = () => {
       cleanUpBeforeRestartOrExit()
       println(s"Tetris stage (id: $id) closed.")

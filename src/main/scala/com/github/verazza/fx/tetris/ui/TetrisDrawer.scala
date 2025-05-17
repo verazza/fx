@@ -17,7 +17,9 @@ object TetrisDrawer {
     isGameOver: Boolean,
     txtGameOver: Text,
     heldTetrominoOpt: Option[FallingTetromino], // ホールドされているミノ
-    holdDisplayPane: Pane // ホールドミノ表示用のPane
+    holdDisplayPane: Pane, // ホールドミノ表示用のPane
+    nextTetrominos: Seq[FallingTetromino], // Nextミノのシーケンス
+    nextDisplayPanes: Seq[Pane] // Nextミノ表示用のPaneのシーケンス
   ): Unit = {
     // 1. メインゲーム盤面の描画
     pane.children.clear()
@@ -61,59 +63,91 @@ object TetrisDrawer {
     }
 
     // 2. ホールドミノの描画
-    holdDisplayPane.children.clear() // ホールド表示エリアをクリア
-    // ホールドエリアにもグリッドを描画 (任意)
+    holdDisplayPane.children.clear()
     drawMiniGrid(
       holdDisplayPane,
       TetrisUI.HoldPaneCellWidth,
       TetrisUI.HoldPaneCellHeight
     )
-
     heldTetrominoOpt.foreach { heldMino =>
-      val shape = heldMino.currentShape // ホールドミノは常に初期形状・向きで表示
-      val color = heldMino.color
-      // ホールド表示エリアの中央に描画するためのオフセット計算
-      // ミノの実際の幅と高さを計算 (4x4の枠内のどこにブロックがあるか)
-      var minCol = shape(0).length; var maxCol = -1
-      var minRow = shape.length; var maxRow = -1
-      for (r <- shape.indices; c <- shape(r).indices) {
-        if (shape(r)(c) == 1) {
-          minCol = Math.min(minCol, c); maxCol = Math.max(maxCol, c)
-          minRow = Math.min(minRow, r); maxRow = Math.max(maxRow, r)
-        }
+      drawTetrominoInMiniPane(
+        holdDisplayPane,
+        heldMino,
+        TetrisUI.HoldPaneCellWidth,
+        TetrisUI.HoldPaneCellHeight
+      )
+    }
+
+    // 3. Nextミノの描画
+    for ((nextMino, nextPane) <- nextTetrominos.zip(nextDisplayPanes)) {
+      nextPane.children.clear()
+      drawMiniGrid(
+        nextPane,
+        TetrisUI.NextPaneCellWidth,
+        TetrisUI.NextPaneCellHeight
+      )
+      drawTetrominoInMiniPane(
+        nextPane,
+        nextMino,
+        TetrisUI.NextPaneCellWidth,
+        TetrisUI.NextPaneCellHeight
+      )
+    }
+  }
+
+  // 小さなペインにテトリミノを描画するヘルパーメソッド
+  private def drawTetrominoInMiniPane(
+    miniPane: Pane, // ★ 引数名は miniPane
+    tetromino: FallingTetromino,
+    paneCellWidth: Int,
+    paneCellHeight: Int
+  ): Unit = {
+    val shape = tetromino.currentShape
+    val color = tetromino.color
+
+    var minCol = shape(0).length; var maxCol = -1
+    var minRow = shape.length; var maxRow = -1
+    for (r <- shape.indices; c <- shape(r).indices) {
+      if (shape(r)(c) == 1) {
+        minCol = Math.min(minCol, c); maxCol = Math.max(maxCol, c)
+        minRow = Math.min(minRow, r); maxRow = Math.max(maxRow, r)
       }
-      val shapeActualWidth = if (maxCol >= minCol) maxCol - minCol + 1 else 0
-      val shapeActualHeight = if (maxRow >= minRow) maxRow - minRow + 1 else 0
+    }
+    val shapeActualWidth = if (maxCol >= minCol) maxCol - minCol + 1 else 0
+    val shapeActualHeight = if (maxRow >= minRow) maxRow - minRow + 1 else 0
 
-      // ホールドペインの中央に配置するためのオフセット
-      val offsetX =
-        ((TetrisUI.HoldPaneCellWidth - shapeActualWidth) / 2.0 - minCol).toInt
-      val offsetY =
-        ((TetrisUI.HoldPaneCellHeight - shapeActualHeight) / 2.0 - minRow).toInt
+    // offsetX と offsetY の計算は元のままで良い (paneCellWidth/Height を使う)
+    // val offsetX = ((paneCellWidth - shapeActualWidth) / 2.0 - minCol).toInt
+    // val offsetY = ((paneCellHeight - shapeActualHeight) / 2.0 - minRow).toInt
 
-      for (r <- shape.indices; c <- shape(r).indices) {
-        if (shape(r)(c) == 1) {
-          val rect = new Rectangle {
-            x = (c + offsetX) * CellSize
-            y = (r + offsetY) * CellSize
-            width = CellSize
-            height = CellSize
-            fill = color
-            stroke = Color.DimGray // 少し薄い枠線
-            strokeWidth = 1
-          }
-          // 描画範囲チェック (ホールドペインからはみ出ないように)
-          if (
-            rect.x.value >= 0 && rect.x.value + CellSize <= holdDisplayPane.prefWidth.value &&
-            rect.y.value >= 0 && rect.y.value + CellSize <= holdDisplayPane.prefHeight.value
-          ) {
-            holdDisplayPane.children += rect
-          }
+    val miniCellSize = CellSize * 0.8
+
+    for (r <- shape.indices; c <- shape(r).indices) {
+      if (shape(r)(c) == 1) {
+        val rect = new Rectangle {
+          // シンプルな中央寄せ (ペインサイズとミノの実際のピクセル幅から)
+          // ★★★ 修正箇所: pane を miniPane に変更 ★★★
+          this.x =
+            (miniPane.prefWidth.value - shapeActualWidth * miniCellSize) / 2 + (c - minCol) * miniCellSize
+          this.y =
+            (miniPane.prefHeight.value - shapeActualHeight * miniCellSize) / 2 + (r - minRow) * miniCellSize
+
+          width = miniCellSize
+          height = miniCellSize
+          fill = color
+          stroke = Color.DimGray
+          strokeWidth = 1
+        }
+        // 描画範囲チェック (miniPaneからはみ出ないように)
+        if (
+          rect.x.value >= 0 && rect.x.value + miniCellSize <= miniPane.prefWidth.value &&
+          rect.y.value >= 0 && rect.y.value + miniCellSize <= miniPane.prefHeight.value
+        ) {
+          miniPane.children += rect
         }
       }
     }
   }
-
   private def drawMiniGrid(pane: Pane, cols: Int, rows: Int): Unit = {
     for (i <- 0 to cols) {
       pane.children += new Line {
