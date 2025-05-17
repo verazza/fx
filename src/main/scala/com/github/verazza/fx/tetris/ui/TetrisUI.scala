@@ -2,7 +2,6 @@ package fx.tetris.ui
 
 import scalafx.Includes._
 import scalafx.scene.Scene
-import scalafx.scene.paint.Color // Color は TetrisDrawer でも使うので注意
 import scalafx.scene.layout.{Pane, StackPane, VBox}
 import scalafx.scene.control.Button
 import scalafx.geometry.{Insets, Pos}
@@ -10,24 +9,25 @@ import scalafx.stage.Stage
 import fx.tetris.logic.{
   TetrisGameLogic,
   GameConstants
-} // FallingTetromino は GameLogic 経由でアクセス
-import scalafx.animation.{AnimationTimer, KeyFrame, Timeline}
+} // FallingTetromino は GameLogic 経由
+import scalafx.animation.{AnimationTimer, KeyFrame, Timeline, PauseTransition}
 import scalafx.util.Duration
 import scalafx.scene.input.{KeyCode, KeyEvent}
 import scalafx.scene.text.Text
 import scalafx.application.Platform
+import scalafx.scene.paint.Color // TetrisDrawer で使うので、ここでの直接使用は減らす
 
 import scala.collection.mutable
 
 object TetrisUI {
 
   import GameConstants._
-  // TetrisDrawer をインポートするか、完全修飾名で呼び出す。ここではインポートを推奨。
-  import TetrisDrawer._
+  import TetrisDrawer._ // TetrisDrawer のメソッドを直接呼び出す
 
   private var animationTimerInstance: Option[AnimationTimer] = None
   private var isPaused: Boolean = false
   private var gameOverDisplayTimeline: Option[Timeline] = None
+  private var gameOverMenuDelay: Option[PauseTransition] = None
 
   def getStage(id: Int = 0): Stage = {
     val gameLogic = new TetrisGameLogic()
@@ -39,7 +39,6 @@ object TetrisUI {
     var moveKeyDownTime = 0L
     var lastMoveTime = 0L
 
-    // --- UI要素の作成 ---
     val gameOverText = new Text {
       text = "GAME OVER"
       style =
@@ -54,7 +53,7 @@ object TetrisUI {
       visible = false
     }
 
-    // ポーズメニューボタン
+    // --- ポーズメニューUI定義 ---
     val resumeButtonP = new Button("ゲームに戻る (Esc)") {
       prefWidth = 200; style = "-fx-font-size: 14pt;"
     }
@@ -67,7 +66,6 @@ object TetrisUI {
     val quitGameButtonP = new Button("ゲームを終了する") {
       prefWidth = 200; style = "-fx-font-size: 14pt;"
     }
-
     val pauseMenuPane = new VBox {
       spacing = 15; alignment = Pos.Center; padding = Insets(30)
       style =
@@ -82,7 +80,7 @@ object TetrisUI {
       )
     }
 
-    // ゲームオーバーメニューボタン
+    // --- ゲームオーバーメニューUI定義 ---
     val restartButtonGO = new Button("もう一度プレイ") {
       prefWidth = 220; style = "-fx-font-size: 14pt;"
     }
@@ -92,7 +90,6 @@ object TetrisUI {
     val quitGameButtonGO = new Button("ゲーム終了") {
       prefWidth = 220; style = "-fx-font-size: 14pt;"
     }
-
     val gameOverMenuPane = new VBox {
       spacing = 15; alignment = Pos.Center; padding = Insets(30)
       style =
@@ -108,9 +105,6 @@ object TetrisUI {
     }
 
     val gamePane = new Pane
-    // gameOverText は gamePane の子として追加し、表示/非表示は drawGameUI 内で制御する
-    // gamePane.children.add(gameOverText) // 初期追加は drawGameUI に任せる
-
     val rootPane = new StackPane {
       children = Seq(gamePane, pauseMenuPane, gameOverMenuPane)
       style = "-fx-background-color: LightGray;"
@@ -120,9 +114,7 @@ object TetrisUI {
       title.value = s"ScalaFX Tetris (id: ${id})"
       scene = new Scene(BoardWidth, BoardHeight) {
         content = rootPane
-
-        // 初期描画
-        drawGameUI(
+        TetrisDrawer.drawGameUI(
           gamePane,
           gameLogic.currentFallingTetromino,
           gameLogic.board,
@@ -131,17 +123,18 @@ object TetrisUI {
         )
 
         val timer = AnimationTimer { now =>
-          if (gameLogic.gameOver) {
-            if (!gameOverMenuPane.visible.value) {
+          if (
+            gameLogic.gameOverPendingAnimation && !gameOverMenuPane.visible.value
+          ) {
+            if (!gameOverText.visible.value) {
+              println(
+                "[UI Tick] Game Over Detected by UI. Starting animation sequence."
+              )
               animationTimerInstance.foreach(_.stop())
-              gameOverText.visible = true // GAME OVER テキスト自体は表示状態にする
+              gameOverText.visible = true
+              gameOverText.toFront()
               startGameOverTextAnimation(gameOverText)
-              scoreText.text = s"スコア: ${gameLogic.score}"
-              scoreText.visible = true
-              gameOverMenuPane.visible = true
-              gameOverMenuPane.toFront()
-              // ゲームオーバー確定時の最終描画
-              drawGameUI(
+              TetrisDrawer.drawGameUI(
                 gamePane,
                 gameLogic.currentFallingTetromino,
                 gameLogic.board,
@@ -149,7 +142,28 @@ object TetrisUI {
                 gameOverText
               )
             }
-          } else if (!isPaused) {
+
+            if (gameOverMenuDelay.isEmpty) {
+              println("[UI Tick] Scheduling game over menu display.")
+              val delay = new PauseTransition(Duration(2000))
+              delay.onFinished = () => {
+                println(
+                  "[UI Tick] PauseTransition finished. Showing game over menu."
+                )
+                if (gameLogic.gameOver) {
+                  scoreText.text = s"スコア: ${gameLogic.score}"
+                  scoreText.visible = true
+                  gameOverMenuPane.visible = true
+                  gameOverMenuPane
+                    .toFront() // gameOverMenuPane を StackPane の最前面に
+                }
+              }
+              delay.play()
+              gameOverMenuDelay = Some(delay)
+            }
+          } else if (
+            !isPaused && !gameLogic.gameOver && !gameLogic.gameOverPendingAnimation
+          ) {
             continuousMoveDirection.foreach { dir =>
               if (moveKeyDownTime > 0 && (now - moveKeyDownTime > DasDelay)) {
                 if (now - lastMoveTime > ArrInterval) {
@@ -158,19 +172,14 @@ object TetrisUI {
               }
             }
             gameLogic.setSoftDropActive(keysPressed.contains(KeyCode.Down))
-
-            val gameUpdated = gameLogic.updateGameTick(now) // ロック遅延処理も含む
-
-            // 状態が更新されたか、または一定間隔で描画 (ここでは毎フレーム描画)
-            // if (gameUpdated) { // 状態更新があった時だけ描画する場合
-            drawGameUI(
+            val gameUpdated = gameLogic.updateGameTick(now)
+            TetrisDrawer.drawGameUI(
               gamePane,
               gameLogic.currentFallingTetromino,
               gameLogic.board,
               gameLogic.gameOver,
               gameOverText
             )
-            // }
           }
         }
         animationTimerInstance = Some(timer)
@@ -178,7 +187,7 @@ object TetrisUI {
 
         onKeyPressed = (event: KeyEvent) => {
           if (gameLogic.gameOver) {
-            // ゲームオーバー時はキー入力無効 (メニュー操作はマウスのみ)
+            // Game over actions
           } else {
             event.code match {
               case KeyCode.Escape =>
@@ -221,7 +230,7 @@ object TetrisUI {
                     keysPressed += event.code
 
                   if (needsRedraw) {
-                    drawGameUI(
+                    TetrisDrawer.drawGameUI(
                       gamePane,
                       gameLogic.currentFallingTetromino,
                       gameLogic.board,
@@ -243,14 +252,14 @@ object TetrisUI {
               (event.code == KeyCode.Left && continuousMoveDirection.contains(
                 -1
               )) ||
-              (event.code == KeyCode.Right && continuousMoveDirection.contains(
-                1
-              ))
+              (event.code == KeyCode.Right && continuousMoveDirection
+                .contains(
+                  1
+                ))
             ) {
               continuousMoveDirection = None; moveKeyDownTime = 0L
             }
-            // キーを離した際も描画更新が必要な場合がある (例: ソフトドロップ解除)
-            drawGameUI(
+            TetrisDrawer.drawGameUI(
               gamePane,
               gameLogic.currentFallingTetromino,
               gameLogic.board,
@@ -262,17 +271,17 @@ object TetrisUI {
       }
     }
 
-    // --- ポーズメニューボタンのアクション設定 ---
+    // --- ボタンアクション設定 ---
     resumeButtonP.onAction = () => togglePause(pauseMenuPane, gameLogic)
     restartButtonP.onAction = () => {
-      stopGameOverTextAnimation()
+      cleanUpBeforeRestartOrExit()
       gameLogic.resetGame()
       keysPressed.clear(); continuousMoveDirection = None; moveKeyDownTime = 0L
       if (isPaused) togglePause(pauseMenuPane, gameLogic)
       else animationTimerInstance.foreach(_.start())
       gameOverMenuPane.visible = false
-      gameOverText.visible = false // リスタート時にGAME OVERテキストも消す
-      drawGameUI(
+      gameOverText.visible = false
+      TetrisDrawer.drawGameUI(
         gamePane,
         gameLogic.currentFallingTetromino,
         gameLogic.board,
@@ -281,24 +290,23 @@ object TetrisUI {
       )
     }
     backToMenuButtonP.onAction = () => {
-      animationTimerInstance.foreach(_.stop()); stopGameOverTextAnimation()
+      cleanUpBeforeRestartOrExit()
       currentStage.close()
     }
     quitGameButtonP.onAction = () => {
-      animationTimerInstance.foreach(_.stop()); stopGameOverTextAnimation()
+      cleanUpBeforeRestartOrExit()
       Platform.exit()
     }
 
-    // --- ゲームオーバーメニューボタンのアクション設定 ---
     restartButtonGO.onAction = () => {
-      stopGameOverTextAnimation()
+      cleanUpBeforeRestartOrExit()
       gameLogic.resetGame()
       keysPressed.clear(); continuousMoveDirection = None; moveKeyDownTime = 0L
       gameOverMenuPane.visible = false
       gameOverText.visible = false
       isPaused = false
       animationTimerInstance.foreach(_.start())
-      drawGameUI(
+      TetrisDrawer.drawGameUI(
         gamePane,
         gameLogic.currentFallingTetromino,
         gameLogic.board,
@@ -307,19 +315,26 @@ object TetrisUI {
       )
     }
     backToMenuButtonGO.onAction = () => {
-      animationTimerInstance.foreach(_.stop()); stopGameOverTextAnimation()
+      cleanUpBeforeRestartOrExit()
       currentStage.close()
     }
     quitGameButtonGO.onAction = () => {
-      animationTimerInstance.foreach(_.stop()); stopGameOverTextAnimation()
+      cleanUpBeforeRestartOrExit()
       Platform.exit()
     }
 
     currentStage.onCloseRequest = () => {
-      animationTimerInstance.foreach(_.stop()); stopGameOverTextAnimation()
+      cleanUpBeforeRestartOrExit()
       println(s"Tetris stage (id: $id) closed.")
     }
     currentStage
+  }
+
+  private def cleanUpBeforeRestartOrExit(): Unit = {
+    animationTimerInstance.foreach(_.stop())
+    stopGameOverTextAnimation()
+    gameOverMenuDelay.foreach(_.stop())
+    gameOverMenuDelay = None
   }
 
   private def togglePause(pauseMenu: VBox, gameLogic: TetrisGameLogic): Unit = {
@@ -354,7 +369,4 @@ object TetrisUI {
     gameOverDisplayTimeline.foreach(_.stop())
     gameOverDisplayTimeline = None
   }
-
-  // drawGameUI と drawGridUI は TetrisDrawer に移動したので、ここでは呼び出しのみ
-  // これらのメソッド定義は TetrisUI.scala から削除される
 }
