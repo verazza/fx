@@ -2,7 +2,7 @@ package fx
 
 trait Gaming {
   lazy val gaming: String = "fx"
-  lazy val menuTitle: String = s"ようこそVerazza.${gaming}へ！"
+  lazy val menuTitle: String = s"ようこそ、${gaming} へ！"
   lazy val tetrisButtonText: String = "テトリス"
 }
 
