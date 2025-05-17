@@ -24,8 +24,7 @@ class TetrisGameLogic {
     gameOver = false
     score = 0
     currentFallInterval = FallIntervalNormal
-    lastFallTime = System.nanoTime() // リセット時に初期化
-    // DAS関連の変数もリセットするならここ
+    lastFallTime = System.nanoTime() // ★ 現在時刻で初期化
   }
 
   private def createNewFallingTetromino(): FallingTetromino = {

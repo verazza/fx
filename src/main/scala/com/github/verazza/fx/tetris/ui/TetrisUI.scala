@@ -1,33 +1,34 @@
-// src/main/scala/com/github/verazza/fx/tetris/ui/TetrisUI.scala
 package fx.tetris.ui
 
 import scalafx.Includes._
-import scalafx.application.JFXApp3 // Mainで使うのでここでは不要かも
 import scalafx.scene.Scene
 import scalafx.scene.paint.Color
 import scalafx.scene.shape.Rectangle
-import scalafx.scene.layout.Pane
+import scalafx.scene.layout.{Pane, StackPane, VBox}
+import scalafx.scene.control.Button
+import scalafx.geometry.{Insets, Pos}
 import scalafx.scene.shape.Line
 import scalafx.stage.Stage
-import fx.tetris.logic.{
-  TetrisGameLogic,
-  FallingTetromino,
-  GameConstants
-} // FallingTetromino も logic にある前提
+import fx.tetris.logic.{TetrisGameLogic, FallingTetromino, GameConstants}
 import scalafx.animation.AnimationTimer
 import scalafx.scene.input.{KeyCode, KeyEvent}
 import scalafx.scene.text.Text
+import scalafx.application.Platform
 import scala.collection.mutable
 
-object TetrisUI { // object または class でUIを構築するメソッドを提供する
+object TetrisUI {
 
-  import GameConstants._ // 定数をインポート
+  import GameConstants._
+
+  private var animationTimerInstance: Option[AnimationTimer] = None
+  private var isPaused: Boolean = false
 
   def getStage(id: Int = 0): Stage = {
-    val gameLogic = new TetrisGameLogic() // ゲームロジックのインスタンスを作成
-    gameLogic.resetGame() // ゲーム状態を初期化
+    val gameLogic = new TetrisGameLogic()
+    gameLogic.resetGame()
 
-    // UI要素
+    isPaused = false
+
     val gameOverText = new Text {
       text = "GAME OVER"
       style =
@@ -36,49 +37,140 @@ object TetrisUI { // object または class でUIを構築するメソッドを�
       layoutY = BoardHeight / 2
       visible = false
     }
-
-    // キー入力状態
     val keysPressed = mutable.Set[KeyCode]()
     var continuousMoveDirection: Option[Int] = None
     var moveKeyDownTime = 0L
     var lastMoveTime = 0L
 
-    new Stage {
+    // --- ポーズメニューUIの作成 ---
+    val pauseMenuPane = new VBox {
+      spacing = 15
+      alignment = Pos.Center
+      padding = Insets(30)
+      style =
+        "-fx-background-color: rgba(50, 50, 50, 0.85); -fx-background-radius: 15; -fx-border-color: silver; -fx-border-width: 2; -fx-border-radius: 13;"
+      visible = false
+      maxWidth = 250
+
+      val resumeButtonInternal = new Button("ゲームに戻る (Esc)") { // 変数名を変更して衝突を避ける
+        prefWidth = 200
+        style = "-fx-font-size: 14pt;"
+      }
+      val restartButtonInternal = new Button("最初からやり直す") { // 変数名を変更
+        prefWidth = 200
+        style = "-fx-font-size: 14pt;"
+      }
+      val backToMenuButtonInternal = new Button("メニュー画面に戻る") { // 変数名を変更
+        prefWidth = 200
+        style = "-fx-font-size: 14pt;"
+      }
+      val quitGameButtonInternal = new Button("ゲームを終了する") { // 変数名を変更
+        prefWidth = 200
+        style = "-fx-font-size: 14pt;"
+      }
+      children = Seq(
+        new Text("ポーズ中") { style = "-fx-font-size: 20pt; -fx-fill: white;" },
+        resumeButtonInternal, // 変更後の変数名を使用
+        restartButtonInternal,
+        backToMenuButtonInternal,
+        quitGameButtonInternal
+      )
+    }
+    // --- ポーズメニューUIここまで ---
+
+    // --- メインのゲームペインとルートペイン ---
+    val gamePane = new Pane
+    gamePane.children.add(gameOverText)
+
+    val rootPane = new StackPane {
+      children = Seq(gamePane, pauseMenuPane)
+      style = "-fx-background-color: LightGray;"
+    }
+    // --- ルートペインここまで ---
+
+    // ★★★ ボタンアクション設定をここに移動 ★★★
+    // `pauseMenuPane` の子要素として定義されたボタンを参照するために、
+    // `pauseMenuPane.children` から取得するか、あるいはボタンの定義を `pauseMenuPane` の外で行い、
+    // `children` に追加する際に参照を保持する。
+    // ここでは、pauseMenuPaneの初期化ブロック内で定義した変数名 (Internalをつけたもの) を使います。
+    // ただし、これらの変数はVBoxの初期化ブロックのスコープ内なので、直接ここからはアクセスできません。
+    // より良い方法は、ボタンをgetStageスコープで定義し、VBoxのchildrenに追加することです。
+
+    // ボタンをgetStageスコープで定義
+    val resumeButton = new Button("ゲームに戻る (Esc)") {
+      prefWidth = 200
+      style = "-fx-font-size: 14pt;"
+    }
+    val restartButton = new Button("最初からやり直す") {
+      prefWidth = 200
+      style = "-fx-font-size: 14pt;"
+    }
+    val backToMenuButton = new Button("メニュー画面に戻る") {
+      prefWidth = 200
+      style = "-fx-font-size: 14pt;"
+    }
+    val quitGameButton = new Button("ゲームを終了する") {
+      prefWidth = 200
+      style = "-fx-font-size: 14pt;"
+    }
+
+    // pauseMenuPane の children を更新して、これらのボタンを使用
+    pauseMenuPane.children = Seq(
+      new Text("ポーズ中") { style = "-fx-font-size: 20pt; -fx-fill: white;" },
+      resumeButton,
+      restartButton,
+      backToMenuButton,
+      quitGameButton
+    )
+
+    // これで、以下のアクション設定が正しくボタンを参照できます。
+    resumeButton.onAction = () => togglePause(pauseMenuPane, gameLogic)
+    restartButton.onAction = () => {
+      gameLogic.resetGame()
+      keysPressed.clear()
+      continuousMoveDirection = None
+      moveKeyDownTime = 0L
+      if (isPaused) togglePause(pauseMenuPane, gameLogic)
+      else animationTimerInstance.foreach(_.start())
+      drawGameUI(
+        gamePane,
+        gameLogic.currentFallingTetromino,
+        gameLogic.board,
+        gameLogic.gameOver,
+        gameOverText
+      )
+    }
+    backToMenuButton.onAction = () => {
+      // stage を参照する必要があるため、stage の定義後にこのアクションを設定するか、
+      // stage をこのラムダにキャプチャさせる。
+      // ここでは、stage を直接参照せず、後で stage.close() を呼び出すようにする。
+      // このアクションは stage の初期化ブロック内に移動するのが適切。
+    }
+    quitGameButton.onAction = () => {
+      animationTimerInstance.foreach(_.stop())
+      Platform.exit()
+    }
+
+    val currentStage = new Stage { // stage変数名を変更して、後で参照できるようにする
       title.value = s"ScalaFX Tetris (id: ${id})"
       scene = new Scene(BoardWidth, BoardHeight) {
-        fill = Color.LightGray
-        val gamePane = new Pane
-        gamePane.children.add(gameOverText)
-
-        // 初期描画
-        drawGameUI(
-          gamePane,
-          gameLogic.currentFallingTetromino,
-          gameLogic.board,
-          gameLogic.gameOver,
-          gameOverText
-        )
+        content = rootPane
 
         val timer = AnimationTimer { now =>
-          if (!gameLogic.gameOver) {
-            // 押しっぱなしキーの処理 (左右移動DAS)
+          if (!isPaused && !gameLogic.gameOver) {
             continuousMoveDirection.foreach { dir =>
               if (moveKeyDownTime > 0 && (now - moveKeyDownTime > DasDelay)) {
                 if (now - lastMoveTime > ArrInterval) {
-                  if (gameLogic.tryMoveHorizontal(dir)) { // 移動できたら描画更新のトリガー
-                    // 描画はタイマーの最後にまとめて行う
-                  }
+                  gameLogic.tryMoveHorizontal(dir)
                   lastMoveTime = now
                 }
               }
             }
-            // ソフトドロップ状態の更新
             gameLogic.setSoftDropActive(keysPressed.contains(KeyCode.Down))
 
-            // 時間経過によるゲーム進行
-            gameLogic.updateGameTick(now) // ゲーム状態を更新
-
-            // 描画
+            if (gameLogic.updateGameTick(now)) {
+              // game state updated
+            }
             drawGameUI(
               gamePane,
               gameLogic.currentFallingTetromino,
@@ -87,7 +179,7 @@ object TetrisUI { // object または class でUIを構築するメソッドを�
               gameOverText
             )
 
-          } else { // ゲームオーバー時の処理
+          } else if (gameLogic.gameOver) {
             if (!gameOverText.visible.value) {
               gameOverText.visible = true
               gameOverText.toFront()
@@ -99,60 +191,61 @@ object TetrisUI { // object または class でUIを構築するメソッドを�
                 gameOverText
               )
             }
+            animationTimerInstance.foreach(_.stop())
           }
         }
+        animationTimerInstance = Some(timer)
         timer.start()
 
         onKeyPressed = (event: KeyEvent) => {
-          if (!gameLogic.gameOver) {
-            var needsRedraw = false
-            if (!keysPressed.contains(event.code)) { // 新しく押されたキー
-              event.code match {
-                case KeyCode.Up =>
-                  if (gameLogic.tryRotate(clockwise = true)) needsRedraw = true
-                case KeyCode.Control =>
-                  if (gameLogic.tryRotate(clockwise = false)) needsRedraw = true
-                case KeyCode.Space =>
-                  gameLogic.performHardDrop()
-                  needsRedraw = true // ハードドロップ後は必ず再描画
-                case KeyCode.Left =>
-                  if (gameLogic.tryMoveHorizontal(-1)) {
-                    moveKeyDownTime = System.nanoTime()
-                    continuousMoveDirection = Some(-1)
-                    lastMoveTime = System.nanoTime()
-                    needsRedraw = true
+          event.code match {
+            case KeyCode.Escape =>
+              togglePause(pauseMenuPane, gameLogic)
+            case _ =>
+              if (!isPaused && !gameLogic.gameOver) {
+                var needsRedraw = false
+                if (!keysPressed.contains(event.code)) {
+                  event.code match {
+                    case KeyCode.Up =>
+                      if (gameLogic.tryRotate(clockwise = true))
+                        needsRedraw = true
+                    case KeyCode.Control =>
+                      if (gameLogic.tryRotate(clockwise = false))
+                        needsRedraw = true
+                    case KeyCode.Space =>
+                      gameLogic.performHardDrop(); needsRedraw = true
+                    case KeyCode.Left =>
+                      if (gameLogic.tryMoveHorizontal(-1)) {
+                        moveKeyDownTime = System.nanoTime();
+                        continuousMoveDirection = Some(-1);
+                        lastMoveTime = System.nanoTime(); needsRedraw = true
+                      }
+                    case KeyCode.Right =>
+                      if (gameLogic.tryMoveHorizontal(1)) {
+                        moveKeyDownTime = System.nanoTime();
+                        continuousMoveDirection = Some(1);
+                        lastMoveTime = System.nanoTime(); needsRedraw = true
+                      }
+                    case _ =>
                   }
-                case KeyCode.Right =>
-                  if (gameLogic.tryMoveHorizontal(1)) {
-                    moveKeyDownTime = System.nanoTime()
-                    continuousMoveDirection = Some(1)
-                    lastMoveTime = System.nanoTime()
-                    needsRedraw = true
-                  }
-                case _ =>
+                }
+                keysPressed += event.code
+                if (event.code == KeyCode.Down) {
+                  gameLogic.setSoftDropActive(true)
+                  needsRedraw = true
+                }
+                if (needsRedraw) {
+                  drawGameUI(
+                    gamePane,
+                    gameLogic.currentFallingTetromino,
+                    gameLogic.board,
+                    gameLogic.gameOver,
+                    gameOverText
+                  )
+                }
               }
-            }
-            keysPressed += event.code
-
-            // ソフトドロップ状態の即時反映 (キーを押した瞬間から)
-            if (event.code == KeyCode.Down) {
-              gameLogic.setSoftDropActive(true)
-              // gameLogic.updateGameTick(System.nanoTime()) // 即座に1マス落とす場合
-              needsRedraw = true
-            }
-
-            if (needsRedraw) { // 状態変更があった場合に描画
-              drawGameUI(
-                gamePane,
-                gameLogic.currentFallingTetromino,
-                gameLogic.board,
-                gameLogic.gameOver,
-                gameOverText
-              )
-            }
           }
         }
-
         onKeyReleased = (event: KeyEvent) => {
           keysPressed -= event.code
           if (event.code == KeyCode.Down) {
@@ -168,18 +261,41 @@ object TetrisUI { // object または class でUIを構築するメソッドを�
             moveKeyDownTime = 0L
           }
         }
-        content = gamePane
       }
+    }
+
+    // backToMenuButton のアクションをここで設定 (currentStage を参照できるように)
+    backToMenuButton.onAction = () => {
+      animationTimerInstance.foreach(_.stop())
+      currentStage.close() // ここで currentStage を参照
+    }
+
+    currentStage.onCloseRequest = () => {
+      animationTimerInstance.foreach(_.stop())
+      println(s"Tetris stage (id: $id) closed.")
+    }
+
+    currentStage
+  }
+
+  private def togglePause(pauseMenu: VBox, gameLogic: TetrisGameLogic): Unit = {
+    isPaused = !isPaused
+    pauseMenu.visible = isPaused
+    if (isPaused) {
+      pauseMenu.toFront()
+      animationTimerInstance.foreach(_.stop())
+    } else {
+      gameLogic.lastFallTime = System.nanoTime() // ポーズ解除直後から通常のインターバルで落下開始
+      animationTimerInstance.foreach(_.start())
     }
   }
 
-  // 描画専門のメソッド
   private def drawGameUI(
     pane: Pane,
-    fallingTetromino: FallingTetromino, // logic.FallingTetromino を受け取る
+    fallingTetromino: FallingTetromino,
     currentBoard: Array[Array[Option[Color]]],
     isGameOver: Boolean,
-    txtGameOver: Text // UI要素も引数で渡す
+    txtGameOver: Text
   ): Unit = {
     pane.children.clear()
     drawGridUI(pane)
