@@ -9,12 +9,13 @@ set "JAVAFX_SDK_DOWNLOAD_URL=https://download2.gluonhq.com/openjfx/%JAVAFX_SDK_V
 set "JAVAFX_SDK_ZIP_NAME=javafx-sdk-%JAVAFX_SDK_VERSION%.zip"
 set "JAVAFX_SDK_EXTRACTED_FOLDER_NAME=javafx-sdk-%JAVAFX_SDK_VERSION%"
 
-set "TETRIS_JAR_DOWNLOAD_URL=https://github.com/verazza/fx/releases/download/v0.1.0/fx-verazza-0.1.0-SNAPSHOT.jar"
-set "APP_JAR_NAME=fx-verazza-0.1.0-SNAPSHOT.jar"
+set "FX_VERSION=v0.2.0"
+set "TETRIS_JAR_DOWNLOAD_URL=https://github.com/verazza/fx/releases/download/%FX_VERSION%/fx-verazza-%FX_VERSION%-SNAPSHOT.jar"
+set "APP_JAR_NAME=fx-verazza-%FX_VERSION%-SNAPSHOT.jar"
 
 REM set "WORK_DIR_BASE=%USERPROFILE%\Desktop"
 set "WORK_DIR_BASE=%~dp0"
-set "WORK_DIR_NAME=verazza_tetris_game_env_v0.1.0"
+set "WORK_DIR_NAME=verazza_tetris_game_env_%FX_VERSION%"
 REM set "WORK_DIR=%WORK_DIR_BASE%\%WORK_DIR_NAME%"
 REM set base-directory is count-directory
 set "WORK_DIR=%~dp0%WORK_DIR_NAME%"
