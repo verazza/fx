@@ -49,20 +49,12 @@ object Tetromino {
   )
 
   val oShape: Array[Array[Int]] =
-    Array( // O Shape is often 2x2, fitting in a 4x4 grid.
+    Array(
       Array(0, 1, 1, 0),
       Array(0, 1, 1, 0),
       Array(0, 0, 0, 0),
       Array(0, 0, 0, 0)
     )
-
-  // またはよりコンパクトなO Shape (2x2)
-  // val oShape: Array[Array[Int]] = Array(
-  //   Array(1, 1),
-  //   Array(1, 1)
-  // )
-  // この場合、FallingTetrominoの回転ロジックや初期位置決めを少し調整する必要があるかもしれません。
-  // 今回は4x4の枠内で定義されたものを使います。
 
   val tetrominoData: Seq[(String, Array[Array[Int]], Color)] = Seq(
     ("I", iShape, Color.Cyan),
@@ -74,12 +66,9 @@ object Tetromino {
     ("O", oShape, Color.Yellow)
   )
 
-  def getRandomTetromino(): (Array[Array[Int]], Color) = {
+  def getRandomTetromino(): (String, Array[Array[Int]], Color) = {
     val randomIndex = rd.nextInt(tetrominoData.length)
     val selected = tetrominoData(randomIndex)
-    (selected._2, selected._3)
+    (selected._1, selected._2, selected._3) // 名前、形状、色を返す
   }
-
-  // Tetromino.Getterは直接は使わず、getRandomTetrominoで新しいミノ情報を取得するようにします。
-  // 既存のコードでGetterを使っている部分は、このgetRandomTetrominoを使うように変更します。}
 }
