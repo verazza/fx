@@ -4,6 +4,8 @@
 I wanna create something simple game by using [ScalaFX](https://scalafx.org). I've decided to try Tetris as my first game to start with.  
 
 ## Progress
+- __05/28/25__  
+![fx_progress_05_18-25](https://raw.githubusercontent.com/verazza/branding/refs/heads/master/repo/fx/fx_tetris_05_18_25.gif)
 - __04/30/25__  
 Added fall control to tetro-mino
 ![fx_progress_04_30_25](https://raw.githubusercontent.com/verazza/branding/refs/heads/master/repo/fx/fx_tetris_04_30_25.gif)
