@@ -1,4 +1,3 @@
-// src/main/scala/com/github/verazza/fx/Menu.scala
 package fx
 
 import scalafx.application.JFXApp3
